@@ -58,41 +58,24 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           set -euo pipefail
-          SETTINGS="
-            set ftp:ssl-force true;
-            set ftp:ssl-protect-data true;
-            set ssl:verify-certificate no;
-            set ftp:passive-mode true;
-            set net:timeout 15;
-            set net:max-retries 8;
-            set net:persist-retries 8;
-            set net:reconnect-interval-base 5;
-            set mirror:parallel-transfer-count 2;
-            set cmd:fail-exit true;
-            open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" \"ftp://$FTP_SERVER\";
-          "
-
-          # vendor/ rarely changes: compare by size only so existing files are
-          # skipped and we never re-upload the whole tree.
-          lftp -e "$SETTINGS
-            mirror -R --size-only --no-perms --parallel=2 --verbose \
-              backend/vendor/ /vendor/;
-            bye"
-
-          # Application code + built SPA (excludes vendor and local-only files).
-          lftp -e "$SETTINGS
-            mirror -R --no-perms --parallel=2 --verbose \
-              --exclude-glob .git* \
-              --exclude 'vendor/' \
-              --exclude 'node_modules/' \
-              --exclude 'tests/' \
-              --exclude-glob .env \
-              --exclude-glob .env.* \
-              --exclude 'storage/logs/' \
-              --exclude 'storage/framework/cache/' \
-              --exclude 'storage/framework/sessions/' \
-              --exclude 'storage/framework/views/' \
-              --exclude-glob phpunit.xml \
-              --exclude-glob .phpunit* \
-              backend/ /;
-            bye"
+          # Script written via printf so credentials (which contain special
+          # characters incl. a comma) are passed literally, not re-parsed.
+          {
+            printf '%s\n' "set ftp:ssl-force true"
+            printf '%s\n' "set ftp:ssl-protect-data true"
+            printf '%s\n' "set ssl:verify-certificate no"
+            printf '%s\n' "set ftp:passive-mode true"
+            printf '%s\n' "set net:timeout 15"
+            printf '%s\n' "set net:max-retries 8"
+            printf '%s\n' "set net:persist-retries 8"
+            printf '%s\n' "set net:reconnect-interval-base 5"
+            printf '%s\n' "set mirror:parallel-transfer-count 2"
+            printf '%s\n' "set cmd:fail-exit true"
+            printf 'open "ftp://%s"\n' "$FTP_SERVER"
+            printf 'user "%s" "%s"\n' "$FTP_USERNAME" "$FTP_PASSWORD"
+            printf '%s\n' "mirror -R --size-only --no-perms --parallel=2 --verbose backend/vendor/ /vendor/"
+            printf '%s\n' "mirror -R --no-perms --parallel=2 --verbose --exclude-glob .git* --exclude vendor/ --exclude node_modules/ --exclude tests/ --exclude-glob .env --exclude-glob .env.* --exclude storage/logs/ --exclude storage/framework/cache/ --exclude storage/framework/sessions/ --exclude storage/framework/views/ --exclude-glob phpunit.xml --exclude-glob .phpunit* backend/ /"
+            printf '%s\n' "bye"
+          } > deploy.lftp
+          lftp -f deploy.lftp
+          rm -f deploy.lftp
