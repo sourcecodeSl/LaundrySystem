@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      upload_vendor:
+        description: 'Also re-sync vendor/ (do this when composer deps change)'
+        type: boolean
+        default: false
 
 concurrency:
   group: production-deploy
@@ -32,24 +37,13 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      # --- Install backend (production) dependencies ---
-      - name: Set up PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: mbstring, bcmath, pdo_mysql, gd, zip
-          tools: composer:v2
-
-      - name: Install backend deps (no dev)
-        working-directory: backend
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-
-      # --- Assemble the deploy payload (SPA into Laravel public/) ---
       - name: Copy SPA into Laravel public
         run: cp -r frontend/dist/. backend/public/
 
-      # --- Upload the Laravel app over FTP ---
-      - name: FTP deploy
+      # --- Deploy application code (fast: excludes the huge vendor/ tree) ---
+      # vendor/ lives on the server and rarely changes, so keeping it out of the
+      # normal deploy keeps each FTP session short enough to finish reliably.
+      - name: Deploy app code
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -58,10 +52,12 @@ jobs:
           protocol: ftps
           local-dir: ./backend/
           server-dir: ./
-          dangerous-clean-slate: false
+          timeout: 120000
+          state-name: .ftp-deploy-app.json
           exclude: |
             **/.git*
             **/.git*/**
+            **/vendor/**
             **/node_modules/**
             **/tests/**
             **/.env
@@ -72,3 +68,30 @@ jobs:
             **/storage/framework/views/**
             **/.phpunit.*
             **/phpunit.xml
+
+      # --- Re-sync vendor/ only on demand (manual run with upload_vendor=true) ---
+      - name: Set up PHP
+        if: ${{ inputs.upload_vendor }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, pdo_mysql, gd, zip
+          tools: composer:v2
+
+      - name: Install backend deps (no dev)
+        if: ${{ inputs.upload_vendor }}
+        working-directory: backend
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Deploy vendor
+        if: ${{ inputs.upload_vendor }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./backend/vendor/
+          server-dir: ./vendor/
+          timeout: 120000
+          state-name: .ftp-deploy-vendor.json
