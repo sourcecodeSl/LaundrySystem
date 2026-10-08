@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upload_vendor:
-        description: 'Also re-sync vendor/ (do this when composer deps change)'
-        type: boolean
-        default: false
 
 concurrency:
   group: production-deploy
@@ -40,38 +35,8 @@ jobs:
       - name: Copy SPA into Laravel public
         run: cp -r frontend/dist/. backend/public/
 
-      # --- Deploy application code (fast: excludes the huge vendor/ tree) ---
-      # vendor/ lives on the server and rarely changes, so keeping it out of the
-      # normal deploy keeps each FTP session short enough to finish reliably.
-      - name: Deploy app code
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          local-dir: ./backend/
-          server-dir: ./
-          timeout: 120000
-          state-name: .ftp-deploy-app.json
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/vendor/**
-            **/node_modules/**
-            **/tests/**
-            **/.env
-            **/.env.*
-            **/storage/logs/**
-            **/storage/framework/cache/**
-            **/storage/framework/sessions/**
-            **/storage/framework/views/**
-            **/.phpunit.*
-            **/phpunit.xml
-
-      # --- Re-sync vendor/ only on demand (manual run with upload_vendor=true) ---
+      # --- Install backend (production) dependencies ---
       - name: Set up PHP
-        if: ${{ inputs.upload_vendor }}
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -79,19 +44,55 @@ jobs:
           tools: composer:v2
 
       - name: Install backend deps (no dev)
-        if: ${{ inputs.upload_vendor }}
         working-directory: backend
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-      - name: Deploy vendor
-        if: ${{ inputs.upload_vendor }}
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          protocol: ftps
-          local-dir: ./backend/vendor/
-          server-dir: ./vendor/
-          timeout: 120000
-          state-name: .ftp-deploy-vendor.json
+      # --- Deploy over FTPS with lftp (reconnects/resumes on dropped sessions) ---
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Deploy to server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          SETTINGS="
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate no;
+            set ftp:passive-mode true;
+            set net:timeout 15;
+            set net:max-retries 8;
+            set net:persist-retries 8;
+            set net:reconnect-interval-base 5;
+            set mirror:parallel-transfer-count 2;
+            set cmd:fail-exit true;
+            open -u \"$FTP_USERNAME\",\"$FTP_PASSWORD\" \"ftp://$FTP_SERVER\";
+          "
+
+          # vendor/ rarely changes: compare by size only so existing files are
+          # skipped and we never re-upload the whole tree.
+          lftp -e "$SETTINGS
+            mirror -R --size-only --no-perms --parallel=2 --verbose \
+              backend/vendor/ /vendor/;
+            bye"
+
+          # Application code + built SPA (excludes vendor and local-only files).
+          lftp -e "$SETTINGS
+            mirror -R --no-perms --parallel=2 --verbose \
+              --exclude-glob .git* \
+              --exclude 'vendor/' \
+              --exclude 'node_modules/' \
+              --exclude 'tests/' \
+              --exclude-glob .env \
+              --exclude-glob .env.* \
+              --exclude 'storage/logs/' \
+              --exclude 'storage/framework/cache/' \
+              --exclude 'storage/framework/sessions/' \
+              --exclude 'storage/framework/views/' \
+              --exclude-glob phpunit.xml \
+              --exclude-glob .phpunit* \
+              backend/ /;
+            bye"
