@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      upload_vendor:
+        description: 'Re-sync vendor/ (needed when composer deps changed)'
+        type: boolean
+        default: false
 
 concurrency:
   group: production-deploy
@@ -15,6 +20,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # vendor/ is large and rarely changes, so it is only re-synced when
+      # composer.lock changed in this push, or on a manual run with
+      # upload_vendor=true. Normal deploys push app code + the SPA only (fast).
+      - name: Decide whether to sync vendor
+        id: vendor
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.upload_vendor }}" = "true" ]; then
+            echo "sync=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qx 'backend/composer.lock'; then
+            echo "sync=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sync=false" >> "$GITHUB_OUTPUT"
+          fi
 
       # --- Build the React SPA ---
       - name: Set up Node
@@ -35,8 +56,9 @@ jobs:
       - name: Copy SPA into Laravel public
         run: cp -r frontend/dist/. backend/public/
 
-      # --- Install backend (production) dependencies ---
+      # --- Backend prod deps (only when vendor needs re-syncing) ---
       - name: Set up PHP
+        if: steps.vendor.outputs.sync == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -44,6 +66,7 @@ jobs:
           tools: composer:v2
 
       - name: Install backend deps (no dev)
+        if: steps.vendor.outputs.sync == 'true'
         working-directory: backend
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
@@ -56,6 +79,7 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SYNC_VENDOR: ${{ steps.vendor.outputs.sync }}
         run: |
           set -euo pipefail
           # Script written via printf so credentials (which contain special
@@ -73,7 +97,9 @@ jobs:
             printf '%s\n' "set cmd:fail-exit true"
             printf 'open "ftp://%s"\n' "$FTP_SERVER"
             printf 'user "%s" "%s"\n' "$FTP_USERNAME" "$FTP_PASSWORD"
-            printf '%s\n' "mirror -R --ignore-time --no-perms --parallel=2 --verbose backend/vendor/ /vendor/"
+            if [ "$SYNC_VENDOR" = "true" ]; then
+              printf '%s\n' "mirror -R --ignore-time --no-perms --parallel=2 --verbose backend/vendor/ /vendor/"
+            fi
             printf '%s\n' "mirror -R --no-perms --parallel=2 --verbose --exclude-glob .git* --exclude vendor/ --exclude node_modules/ --exclude tests/ --exclude-glob .env --exclude-glob .env.* --exclude storage/logs/ --exclude storage/framework/cache/ --exclude storage/framework/sessions/ --exclude storage/framework/views/ --exclude-glob phpunit.xml --exclude-glob .phpunit* backend/ /"
             printf '%s\n' "bye"
           } > deploy.lftp
