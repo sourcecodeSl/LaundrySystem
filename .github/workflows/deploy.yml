@@ -1,0 +1,74 @@
+name: Deploy to production (FTP)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Build the React SPA ---
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # --- Install backend (production) dependencies ---
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, pdo_mysql, gd, zip
+          tools: composer:v2
+
+      - name: Install backend deps (no dev)
+        working-directory: backend
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      # --- Assemble the deploy payload (SPA into Laravel public/) ---
+      - name: Copy SPA into Laravel public
+        run: cp -r frontend/dist/. backend/public/
+
+      # --- Upload the Laravel app over FTP ---
+      - name: FTP deploy
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          local-dir: ./backend/
+          server-dir: ./
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/tests/**
+            **/.env
+            **/.env.*
+            **/storage/logs/**
+            **/storage/framework/cache/**
+            **/storage/framework/sessions/**
+            **/storage/framework/views/**
+            **/.phpunit.*
+            **/phpunit.xml
