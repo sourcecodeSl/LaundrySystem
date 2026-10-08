@@ -8,6 +8,7 @@ import { useAuth } from '../../lib/auth'
 import { date, label, money, qty, today } from '../../lib/format'
 import { DataTable } from '../../components/DataTable'
 import { Card, DateRange, Empty, Field, Input, Modal, PageHeader, Pagination, SearchInput, Select, Spinner, StatusBadge, Textarea, Toggle } from '../../components/ui'
+import { AsyncButton, useConfirm } from '../../components/feedback'
 
 const DOCS: Record<string, { title: string; subtitle: string; perm: string; icon: any; qtyLabel: string }> = {
   grns: { title: 'GRN / Stock Add', subtitle: 'Receive consumables from suppliers with invoice number', perm: 'inventory.grn', icon: PackagePlus, qtyLabel: 'Qty received' },
@@ -32,6 +33,7 @@ export default function StockDocs() {
   const [form, setForm] = useState<any>({})
   const [lines, setLines] = useState<Line[]>([])
   const [busy, setBusy] = useState(false)
+  const confirm = useConfirm()
 
   const params = { ...f, page, branch_id: branchId || undefined }
   const list = useQuery({ queryKey: ['stock-docs', type, params], queryFn: async () => (await api.get<Paginated<any>>(`stock/${type}`, { params })).data, placeholderData: keepPreviousData, enabled: !!cfg })
@@ -73,8 +75,12 @@ export default function StockDocs() {
     }
   }
 
-  const show = async (id: number) => setView((await api.get(`stock/${type}/${id}`)).data)
+  const show = async (id: number) => {
+    const t = toast.loading('Opening document…')
+    try { setView((await api.get(`stock/${type}/${id}`)).data); toast.dismiss(t) } catch (e) { toast.error(errorMessage(e), { id: t }) }
+  }
   const applyCount = async () => {
+    if (!(await confirm({ title: 'Apply this stock count?', message: 'Stock on hand will be set to the counted quantities and the variance posted to stock records. This cannot be undone.', confirmText: 'Apply count', danger: false }))) return
     try {
       setView((await api.post(`stock/counts/${view.id}/apply`)).data)
       toast.success('Stock count applied')
@@ -93,7 +99,7 @@ export default function StockDocs() {
           <SearchInput className="flex-1" value={f.q} onChange={(q) => setF({ ...f, q })} placeholder={type === 'grns' ? 'Ref no or invoice no…' : 'Ref no…'} />
           <DateRange from={f.from} to={f.to} onChange={(from, to) => setF({ ...f, from, to })} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} onRowClick={(r) => show(r.id)} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} onRowClick={(r) => show(r.id)} columns={[
           { key: 'ref_no', header: 'Ref', render: (r) => <b>{r.ref_no}</b> },
           { key: 'date', header: 'Date', render: (r) => date(r.date) },
           { key: 'branch', header: 'Branch', render: (r) => r.branch?.name },
@@ -148,7 +154,7 @@ export default function StockDocs() {
       </Modal>
 
       <Modal open={!!view} onClose={() => setView(null)} title={view?.ref_no} size="lg" footer={type === 'counts' && view?.status === 'draft' && can('inventory.count') &&
-        <button className="btn-success" onClick={applyCount}><CheckCircle2 className="h-4 w-4" />Apply count</button>}>
+        <AsyncButton className="btn-success" onClick={applyCount} icon={<CheckCircle2 className="h-4 w-4" />}>Apply count</AsyncButton>}>
         {view && <>
           <div className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
             <p><span className="text-slate-500">Date:</span> {date(view.date)}</p>

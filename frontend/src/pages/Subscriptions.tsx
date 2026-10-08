@@ -8,6 +8,7 @@ import { date, label, money, qty, today } from '../lib/format'
 import { CustomerPicker } from '../components/CustomerPicker'
 import { DataTable } from '../components/DataTable'
 import { Card, Field, Input, Modal, PageHeader, Pagination, SearchInput, Select, Spinner, StatusBadge } from '../components/ui'
+import { AsyncButton, useConfirm } from '../components/feedback'
 
 /** Billing transactions (module 59): customer subscriptions to billing plans. */
 export default function Subscriptions() {
@@ -16,6 +17,7 @@ export default function Subscriptions() {
   const [f, setF] = useState({ q: '', status: '' })
   const [form, setForm] = useState<any>(null)
   const [busy, setBusy] = useState(false)
+  const confirm = useConfirm()
   const params = { ...f, page, branch_id: branchId || undefined }
   const list = useQuery({ queryKey: ['billing-tx', params], queryFn: async () => (await api.get<Paginated<any>>('billing-transactions', { params })).data, placeholderData: keepPreviousData })
   const plans = useQuery({ queryKey: ['billing-plans', 'options'], queryFn: async () => (await api.get('billing-plans', { params: { all: 1, is_active: 1 } })).data.data as any[] })
@@ -44,7 +46,7 @@ export default function Subscriptions() {
           <SearchInput className="flex-1" value={f.q} onChange={(q) => setF({ ...f, q })} placeholder="Ref, customer…" />
           <Select className="w-auto" placeholder="All statuses" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} options={['active', 'expired', 'cancelled'].map((s) => ({ value: s, label: label(s) }))} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'ref_no', header: 'Ref', render: (r) => <b>{r.ref_no}</b> },
           { key: 'customer', header: 'Customer', render: (r) => <div>{r.customer?.name}<p className="text-xs text-slate-500">{r.customer?.mobile}</p></div> },
           { key: 'plan', header: 'Plan', render: (r) => r.plan?.name },
@@ -53,9 +55,10 @@ export default function Subscriptions() {
           { key: 'amount', header: 'Amount', align: 'right', render: (r) => money(r.amount) },
           { key: 'paid', header: 'Paid', align: 'right', render: (r) => money(r.paid) },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-          { key: 'x', header: '', render: (r) => r.status === 'active' && <button className="btn-icon hover:!text-rose-600" title="Cancel" onClick={async () => {
-            try { await api.post(`billing-transactions/${r.id}/cancel`); list.refetch() } catch (e) { toast.error(errorMessage(e)) }
-          }}><Ban className="h-4 w-4" /></button> },
+          { key: 'x', header: '', render: (r) => r.status === 'active' && <AsyncButton className="btn-icon hover:!text-rose-600" title="Cancel" icon={<Ban className="h-4 w-4" />} onClick={async () => {
+            if (!(await confirm({ title: 'Cancel subscription?', message: `${r.customer?.name}'s ${r.plan?.name} plan will stop giving discounts. Payments already made are not refunded automatically.`, confirmText: 'Cancel plan' }))) return
+            try { await api.post(`billing-transactions/${r.id}/cancel`); toast.success('Subscription cancelled'); await list.refetch() } catch (e) { toast.error(errorMessage(e)) }
+          }} /> },
         ]} />
         {list.data && <Pagination page={list.data.current_page} last={list.data.last_page} total={list.data.total} onPage={setPage} />}
       </Card>

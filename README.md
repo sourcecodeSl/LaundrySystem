@@ -4,6 +4,18 @@ Multi-branch laundry POS & back-office. **Backend:** Laravel 12 REST API · **Fr
 
 ## Quick start (development)
 
+From the project root, one command starts everything:
+
+```bash
+npm run setup   # first time only: composer install + npm install
+npm run dev     # starts XAMPP MySQL (if needed), Laravel API on :8000 and the frontend on :5173
+```
+
+Open http://localhost:5173. Press Ctrl+C to stop the API and frontend (MySQL keeps running, like the XAMPP panel).
+If XAMPP is not in `C:\xampp`, set `XAMPP_PATH` first.
+
+Or run the pieces manually:
+
 ```bash
 # Backend
 cd backend

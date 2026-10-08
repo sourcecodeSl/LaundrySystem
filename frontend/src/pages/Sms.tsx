@@ -60,7 +60,7 @@ export default function Sms() {
           <Select className="w-auto" placeholder="All types" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })} options={['order_created', 'order_ready', 'delivered', 'payment_reminder', 'ebill', 'custom'].map((t) => ({ value: t, label: label(t) }))} />
           <Select className="w-auto" placeholder="All statuses" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} options={['sent', 'failed', 'skipped', 'queued'].map((t) => ({ value: t, label: label(t) }))} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'created_at', header: 'Time', render: (r) => <span className="text-xs">{dateTime(r.created_at)}</span> },
           { key: 'mobile', header: 'To', render: (r) => <div>{r.customer?.name ?? '—'}<p className="text-xs text-slate-500">{r.mobile}</p></div> },
           { key: 'type', header: 'Type', render: (r) => label(r.type) },

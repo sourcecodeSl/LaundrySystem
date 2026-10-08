@@ -9,6 +9,7 @@ import { date, label, money, qty } from '../lib/format'
 import { esc, printHtml } from '../lib/print'
 import { DataTable } from '../components/DataTable'
 import { Card, Confirm, PageHeader, Pagination, SearchInput, Select, StatusBadge } from '../components/ui'
+import { AsyncButton } from '../components/feedback'
 
 export default function Quotations() {
   const { can, branchId, lookups } = useAuth()
@@ -64,7 +65,7 @@ export default function Quotations() {
           <Select className="w-auto" placeholder="All statuses" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}
             options={['draft', 'sent', 'accepted', 'converted', 'expired'].map((s) => ({ value: s, label: label(s) }))} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'quotation_no', header: 'Quotation', render: (r) => <b>{r.quotation_no}</b> },
           { key: 'created_at', header: 'Date', render: (r) => date(r.created_at) },
           { key: 'customer', header: 'Customer', render: (r) => r.customer?.name ?? r.customer_name ?? '—' },
@@ -73,7 +74,7 @@ export default function Quotations() {
           { key: 'total', header: 'Total', align: 'right', render: (r) => money(r.total) },
           { key: 'a', header: '', align: 'right', render: (r) => (
             <div className="flex justify-end gap-1">
-              <button className="btn-icon" title="Print" onClick={() => print(r.id)}><Printer className="h-4 w-4" /></button>
+              <AsyncButton className="btn-icon" title="Print" icon={<Printer className="h-4 w-4" />} onClick={async () => { try { await print(r.id) } catch (e) { toast.error(errorMessage(e)) } }} />
               {r.status !== 'converted' && can('quotations.update') && <Link className="btn-icon" title="Edit" to={`/pos?mode=quotation&quotation=${r.id}`}><Pencil className="h-4 w-4" /></Link>}
               {r.status !== 'converted' && can('quotations.convert') && <button className="btn-icon text-emerald-600" title="Convert to order" onClick={() => setConverting(r)}><ArrowRightCircle className="h-4 w-4" /></button>}
               {can('quotations.delete') && r.status !== 'converted' && <button className="btn-icon hover:!text-rose-600" onClick={() => setDeleting(r)}><Trash2 className="h-4 w-4" /></button>}
@@ -85,7 +86,7 @@ export default function Quotations() {
       <Confirm open={!!converting} danger={false} title="Convert to order?" confirmText="Convert" onClose={() => setConverting(null)} onConfirm={convert}
         message="An order will be created with current prices (unpaid). A customer must be linked for unpaid orders; collect payment from the order page." />
       <Confirm open={!!deleting} title="Delete quotation?" confirmText="Delete" onClose={() => setDeleting(null)}
-        onConfirm={async () => { try { await api.delete(`quotations/${deleting.id}`); setDeleting(null); list.refetch() } catch (e) { toast.error(errorMessage(e)) } }} />
+        onConfirm={async () => { try { await api.delete(`quotations/${deleting.id}`); toast.success('Quotation deleted'); setDeleting(null); list.refetch() } catch (e) { toast.error(errorMessage(e)) } }} />
     </div>
   )
 }

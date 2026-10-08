@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { ORDER_FLOW, label, money, qty } from '../lib/format'
-import { PageHeader, SearchInput, Spinner, StatusBadge, cx } from '../components/ui'
+import { PageHeader, SearchInput, StatusBadge, cx } from '../components/ui'
+import { ErrorState, Skeleton, useConfirm } from '../components/feedback'
 
 const COLS = ORDER_FLOW.filter((s) => s !== 'delivered')
 
@@ -15,6 +16,7 @@ const COLS = ORDER_FLOW.filter((s) => s !== 'delivered')
 export default function Production() {
   const { branchId } = useAuth()
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<number[]>([])
   const [busy, setBusy] = useState(false)
@@ -29,6 +31,7 @@ export default function Production() {
   })
 
   const move = async (ids: number[], status: string) => {
+    if (status === 'delivered' && !(await confirm({ title: `Deliver ${ids.length} order(s)?`, message: 'Orders with a pending balance are only delivered if the customer has credit available.', confirmText: 'Mark delivered', danger: false }))) return
     setBusy(true)
     try {
       const { data: r } = await api.post('orders/bulk-status', { ids, status })
@@ -62,10 +65,10 @@ export default function Production() {
         </div>
       )}
 
-      {!data.data ? <div className="grid h-64 place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div> : (
-        <div className="grid gap-4 overflow-x-auto pb-4 md:grid-cols-3 xl:grid-cols-5">
+      {!data.data ? (data.isError ? <ErrorState error={data.error} onRetry={() => data.refetch()} /> : <div className="grid auto-cols-[minmax(250px,1fr)] grid-flow-col gap-4 overflow-hidden">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-80 rounded-3xl" />)}</div>) : (
+        <div className="grid auto-cols-[minmax(250px,1fr)] grid-flow-col gap-4 overflow-x-auto pb-4">
           {COLS.map((s) => (
-            <div key={s} className="min-w-[260px] rounded-3xl bg-slate-100/80 p-3 dark:bg-slate-900/60">
+            <div key={s} className="flex min-w-0 flex-col rounded-3xl bg-slate-100/80 p-3 dark:bg-slate-900/60">
               <div className="mb-3 flex items-center justify-between px-1">
                 <StatusBadge status={s} />
                 <span className="text-sm font-bold text-slate-500">{data.data[s].length}</span>

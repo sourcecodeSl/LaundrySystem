@@ -15,6 +15,7 @@ import { printReceipt, printTags } from '../lib/print'
 import { CustomerPicker, type CustomerLite } from '../components/CustomerPicker'
 import { useShift } from '../components/Layout'
 import { Empty, Field, Input, Modal, Select, Spinner, Textarea, cx } from '../components/ui'
+import { AsyncButton, ErrorState, PageLoader, useConfirm } from '../components/feedback'
 
 type Line = {
   uid: string; service_id: number | null; variant_id: number | null; description: string; pricing_type: string
@@ -33,6 +34,7 @@ export default function Pos() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const cat = useCatalog()
+  const confirm = useConfirm()
   const shift = useShift()
 
   const [serviceId, setServiceId] = useState<number | null>(null)
@@ -157,7 +159,13 @@ export default function Pos() {
   }
 
   const recall = async (h: any) => {
-    const { data } = await api.get(`pos/held/${h.id}`)
+    if (lines.length && !(await confirm({ title: 'Replace current cart?', message: 'The items in the current cart will be discarded. Hold them first if you need them.', confirmText: 'Recall bill' }))) return
+    let data: any
+    try {
+      data = (await api.get(`pos/held/${h.id}`)).data
+    } catch (e) {
+      return toast.error(errorMessage(e))
+    }
     const c = data.cart
     setLines(c.items ?? []); setCustomer(c.customer ?? data.customer ?? null); setPromotionId(c.promotionId ?? ''); setDiscount(c.discount ?? '')
     setDelivery(c.delivery ?? { type: 'pickup', address: '', at: '' }); setNotes(c.notes ?? ''); setHeldId(data.id); setHeldOpen(false)
@@ -205,7 +213,8 @@ export default function Pos() {
     setCheckout(true)
   }
 
-  if (cat.isLoading) return <div className="grid h-96 place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div>
+  if (cat.isError) return <ErrorState error={cat.error} onRetry={() => cat.refetch()} />
+  if (cat.isLoading) return <PageLoader stats={4} />
   if (!cat.data?.services.length) return <Empty title="No services configured" text="Add services, variants and prices first." />
 
   const shiftRequired = !quotationMode && lookups?.settings.general.require_shift === '1' && shift.isFetched && !shift.data
@@ -386,8 +395,9 @@ export default function Pos() {
             </div>
 
             <div className="flex gap-2">
-              <button className="btn-secondary px-3" title="Clear cart" disabled={!lines.length} onClick={reset}><X className="h-4 w-4" /></button>
-              {!quotationMode && can('pos.hold') && <button className="btn-secondary" disabled={!lines.length || needsBranch} onClick={hold}><Pause className="h-4 w-4" />Hold</button>}
+              <button className="btn-secondary px-3" title="Clear cart" disabled={!lines.length}
+                onClick={async () => { if (await confirm({ title: 'Clear the cart?', message: `${lines.length} item(s) will be removed.`, confirmText: 'Clear cart' })) reset() }}><X className="h-4 w-4" /></button>
+              {!quotationMode && can('pos.hold') && <AsyncButton className="btn-secondary" disabled={!lines.length || needsBranch} onClick={hold} icon={<Pause className="h-4 w-4" />}>Hold</AsyncButton>}
               {quotationMode
                 ? <button className="btn-primary flex-1 py-3" disabled={!totals || saveQuotation.isPending || needsBranch} onClick={() => saveQuotation.mutate()}>{saveQuotation.isPending && <Spinner className="h-4 w-4" />}Save quotation</button>
                 : <button className="btn-primary flex-1 py-3 text-base" disabled={!totals || calc.isFetching || needsBranch || shiftRequired} onClick={openCheckout}>Charge {money(total)}</button>}
@@ -448,8 +458,11 @@ export default function Pos() {
               <div key={h.id} className="flex items-center gap-3 rounded-2xl border border-slate-100 p-3 dark:border-slate-800">
                 <div className="flex-1"><p className="font-semibold">{h.label}</p><p className="text-xs text-slate-500">{dayjs(h.created_at).format('DD MMM, hh:mm A')} · {h.user?.name}</p></div>
                 <b>{money(h.total)}</b>
-                <button className="btn-primary btn-sm" onClick={() => recall(h)}>Recall</button>
-                <button className="btn-icon" onClick={async () => { await api.delete(`pos/held/${h.id}`); held.refetch() }}><Trash2 className="h-4 w-4" /></button>
+                <AsyncButton className="btn-primary btn-sm" onClick={() => recall(h)}>Recall</AsyncButton>
+                <AsyncButton className="btn-icon hover:!text-rose-600" title="Discard" icon={<Trash2 className="h-4 w-4" />} onClick={async () => {
+                  if (!(await confirm({ title: 'Discard held bill?', message: `"${h.label}" (${money(h.total)}) will be deleted.`, confirmText: 'Discard' }))) return
+                  try { await api.delete(`pos/held/${h.id}`); toast.success('Held bill discarded'); await held.refetch() } catch (e) { toast.error(errorMessage(e)) }
+                }} />
               </div>
             ))}
           </div>

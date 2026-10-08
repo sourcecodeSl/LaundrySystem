@@ -8,7 +8,8 @@ import { dateTime, label, money } from '../../lib/format'
 import { esc, printHtml } from '../../lib/print'
 import { useShift } from '../../components/Layout'
 import { DataTable } from '../../components/DataTable'
-import { Card, Field, Input, Modal, PageHeader, Pagination, Select, Spinner, Stat, StatusBadge, Textarea, cx } from '../../components/ui'
+import { Card, Field, Input, Modal, PageHeader, Pagination, Select, Stat, StatusBadge, Textarea, cx } from '../../components/ui'
+import { AsyncButton, Skeleton } from '../../components/feedback'
 
 function printZ(s: any, business: string) {
   const rows = Object.entries(s.summary?.by_method ?? {}).map(([m, v]: any) => `<tr><td>${esc(label(m))}</td><td class="r">${money(v.in, false)}</td><td class="r">${money(v.out, false)}</td></tr>`).join('')
@@ -55,7 +56,7 @@ export default function Shifts() {
         actions={s ? <button className="btn-danger" onClick={() => setCloseForm({ closing_cash: '', notes: '' })}><LockKeyhole className="h-4 w-4" />Close shift</button>
           : <button className="btn-success" onClick={() => setOpenForm({ opening_cash: '', branch_id: branchId ?? me?.user.branch_id ?? '' })}><PlayCircle className="h-4 w-4" />Open shift</button>} />
 
-      {current.isLoading ? <Spinner /> : s ? (
+      {current.isLoading ? <Skeleton className="h-44 w-full rounded-2xl" /> : s ? (
         <Card title={<span className="flex items-center gap-2"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500" />Current shift · {s.branch?.name}</span>}>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <Stat label="Opened" value={dateTime(s.opened_at).split(', ')[1]} sub={dateTime(s.opened_at).split(',')[0]} />
@@ -71,7 +72,7 @@ export default function Shifts() {
       ) : <Card><p className="text-sm text-slate-500">You have no open shift.</p></Card>}
 
       <Card title={can('shifts.view_all') ? 'All shifts' : 'My shifts'} padded={false}>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'user', header: 'Cashier', render: (r) => r.user?.name }, { key: 'branch', header: 'Branch', render: (r) => r.branch?.name },
           { key: 'opened_at', header: 'Opened', render: (r) => dateTime(r.opened_at) }, { key: 'closed_at', header: 'Closed', render: (r) => dateTime(r.closed_at) },
           { key: 'opening_cash', header: 'Opening', align: 'right', render: (r) => money(r.opening_cash) },
@@ -79,7 +80,7 @@ export default function Shifts() {
           { key: 'closing_cash', header: 'Counted', align: 'right', render: (r) => (r.closing_cash != null ? money(r.closing_cash) : '—') },
           { key: 'difference', header: 'Difference', align: 'right', render: (r) => r.difference != null ? <b className={cx(r.difference < 0 ? 'text-rose-600' : r.difference > 0 ? 'text-amber-600' : 'text-emerald-600')}>{money(r.difference)}</b> : '—' },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-          { key: 'p', header: '', render: (r) => r.status === 'closed' && <button className="btn-icon" onClick={async () => printZ((await api.get(`shifts/${r.id}`)).data, lookups?.settings.general.business_name ?? '')}><Printer className="h-4 w-4" /></button> },
+          { key: 'p', header: '', render: (r) => r.status === 'closed' && <AsyncButton className="btn-icon" title="Print shift report" icon={<Printer className="h-4 w-4" />} onClick={async () => { try { printZ((await api.get(`shifts/${r.id}`)).data, lookups?.settings.general.business_name ?? '') } catch (e) { toast.error(errorMessage(e)) } }} /> },
         ]} />
         {list.data && <Pagination page={list.data.current_page} last={list.data.last_page} total={list.data.total} onPage={setPage} />}
       </Card>

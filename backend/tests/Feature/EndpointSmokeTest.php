@@ -22,7 +22,7 @@ class EndpointSmokeTest extends TestCase
             'items', 'financial-rates', 'transaction-categories', 'billing-plans', 'roles', 'users', 'orders', 'quotations', 'sales-returns',
             'complaints', 'damage-lost', 'sms', 'stock/grns', 'stock/supplier-returns', 'stock/adjustments', 'stock/transfers', 'stock/counts',
             'stock/opening', 'supplier-payments', 'transactions', 'cheques', 'shifts', 'shifts/current', 'billing-transactions', 'pos/held',
-            'settings', 'ledger/customers/1', 'ledger/suppliers/1', 'customers?all=1&q=kas', 'orders?q=0712&status=received'];
+            'settings', 'alerts', 'ledger/customers/1', 'ledger/suppliers/1', 'customers?all=1&q=kas', 'orders?q=0712&status=received'];
 
         foreach ($endpoints as $e) {
             $this->getJson("/api/$e")->assertOk();
@@ -49,5 +49,8 @@ class EndpointSmokeTest extends TestCase
         $this->postJson('/api/roles', ['name' => 'Auditor', 'permissions' => ['reports.view', 'not.real']])->assertStatus(422);
         $this->postJson('/api/roles', ['name' => 'Auditor', 'permissions' => ['reports.view']])->assertCreated();
         $this->getJson('/api/customers?sort=password&dir=asc')->assertOk(); // non-whitelisted sort ignored
+
+        // All 5 seeded consumables start with zero stock, so all are low.
+        $this->getJson('/api/alerts')->assertOk()->assertJsonFragment(['key' => 'low_stock', 'count' => 5]);
     }
 }

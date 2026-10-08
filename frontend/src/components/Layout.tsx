@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,6 +12,8 @@ import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { money } from '../lib/format'
 import { cx } from './ui'
+import { PageLoader, useConfirm } from './feedback'
+import { NotificationBell } from './NotificationBell'
 
 type NavItem = { to: string; label: string; icon: ReactNode; perm: string[] }
 type NavGroup = { label: string; items: NavItem[] }
@@ -108,9 +110,20 @@ export default function Layout() {
   const nav = useNavigate()
   const loc = useLocation()
   const shift = useShift()
+  const confirm = useConfirm()
   const business = lookups?.settings.general.business_name ?? 'Laundry'
 
   useEffect(() => setMobileOpen(false), [loc.pathname])
+
+  // Network connectivity alerts
+  useEffect(() => {
+    const off = () => toast.error('You are offline. Changes cannot be saved until the connection is back.', { id: 'net', duration: Infinity })
+    const on = () => toast.success('Back online', { id: 'net', duration: 3000 })
+    window.addEventListener('offline', off)
+    window.addEventListener('online', on)
+    if (!navigator.onLine) off()
+    return () => { window.removeEventListener('offline', off); window.removeEventListener('online', on) }
+  }, [])
 
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((it) => can(...it.perm)) })).filter((g) => g.items.length)
 
@@ -202,6 +215,7 @@ export default function Layout() {
               </NavLink>
             )}
 
+            <NotificationBell />
             <button className="btn-icon" onClick={() => setDark(!dark)} title="Toggle theme">{dark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}</button>
 
             <div className="relative">
@@ -222,14 +236,14 @@ export default function Layout() {
                     <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
                       onClick={() => { setMenu(false); nav('/change-password') }}><KeyRound className="h-4 w-4" />Change password</button>
                     <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10"
-                      onClick={() => logout()}><LogOut className="h-4 w-4" />Sign out</button>
+                      onClick={async () => { setMenu(false); if (await confirm({ title: 'Sign out?', message: 'You will need to sign in again to continue.', confirmText: 'Sign out', danger: false })) { await logout(); toast.success('Signed out') } }}><LogOut className="h-4 w-4" />Sign out</button>
                   </div>
                 </>
               )}
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
+        <main className="mx-auto max-w-[1600px] p-4 sm:p-6"><Suspense fallback={<PageLoader />}><Outlet /></Suspense></main>
       </div>
     </div>
   )

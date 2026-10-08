@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth'
 import { printReceipt } from '../lib/print'
 import { ResourcePage, yesNo } from '../components/ResourcePage'
 import { Card, Field, Input, PageHeader, Select, Spinner, Tabs, Textarea, Toggle } from '../components/ui'
+import { ErrorState, PageLoader } from '../components/feedback'
 
 type Tab = 'general' | 'receipt' | 'sms' | 'rates'
 
@@ -46,7 +47,8 @@ export default function SettingsPage() {
   }
   const saveBtn = (g: string) => <button className="btn-primary" disabled={busy} onClick={() => save(g)}>{busy ? <Spinner className="h-4 w-4" /> : <Save className="h-4 w-4" />}Save</button>
 
-  if (!q.data || !form.general) return <Spinner />
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />
+  if (!q.data || !form.general) return <PageLoader table={false} stats={2} />
 
   return (
     <div>

@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { AlertTriangle, CalendarClock, ClipboardList, Coins, Gauge, HandCoins, Plus, Receipt, Scale, Wallet } from 'lucide-react'
-import { api } from '../lib/api'
+import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { ORDER_FLOW, date, label, money, monthStart, qty, today } from '../lib/format'
-import { Card, DateRange, Empty, PageHeader, Spinner, Stat, StatusBadge } from '../components/ui'
+import { Card, DateRange, Empty, PageHeader, Stat, StatusBadge } from '../components/ui'
+import { PageLoader } from '../components/feedback'
 
 const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f43f5e']
 
@@ -28,7 +29,9 @@ export default function Dashboard() {
           {can('pos.access') && <Link to="/pos" className="btn-primary"><Plus className="h-4 w-4" />New order</Link>}
         </>} />
 
-      {!d ? <div className="grid h-64 place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div> : (
+      {q.isError && !d ? (
+        <Empty title="Could not load the dashboard" text={errorMessage(q.error)} icon={<AlertTriangle className="h-7 w-7" />} />
+      ) : !d ? <PageLoader header={false} stats={8} /> : (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <Stat label="Sales" value={money(k.sales)} icon={<Receipt className="h-5 w-5" />} sub={`Net ${money(k.net_sales)} · avg ${money(k.avg_order)}`} />

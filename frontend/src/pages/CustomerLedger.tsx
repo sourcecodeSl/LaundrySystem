@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, BookOpen, Download, HandCoins, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
+import { AsyncButton, ErrorState, PageLoader, useConfirm } from '../components/feedback'
 import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { exportExcel } from '../lib/exportExcel'
 import { date, label, money } from '../lib/format'
-import { Card, DateRange, Empty, Field, Input, Modal, PageHeader, Select, Spinner, Stat } from '../components/ui'
+import { Card, DateRange, Empty, Field, Input, Modal, PageHeader, Select, Stat } from '../components/ui'
 
 export default function CustomerLedger() {
   const { id } = useParams()
@@ -16,9 +17,9 @@ export default function CustomerLedger() {
   const q = useQuery({ queryKey: ['cust-ledger', id, range], queryFn: async () => (await api.get(`ledger/customers/${id}`, { params: range })).data })
   const [settle, setSettle] = useState<any>(null)
   const [adjust, setAdjust] = useState<any>(null)
+  const confirm = useConfirm()
 
-  if (q.isLoading) return <Spinner />
-  if (!q.data) return <Empty title="Not found" />
+  if (!q.data) return q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <PageLoader stats={3} />
   const { customer: c, entries, open_orders, credit_available } = q.data
 
   const post = async (url: string, body: any, close: () => void) => {
@@ -65,7 +66,7 @@ export default function CustomerLedger() {
 
       <Modal open={!!settle} onClose={() => setSettle(null)} title="Receive payment on account" size="sm" footer={<>
         <button className="btn-secondary" onClick={() => setSettle(null)}>Cancel</button>
-        <button className="btn-success" onClick={() => post(`ledger/customers/${id}/settle`, settle, () => setSettle(null))}>Save</button>
+        <AsyncButton className="btn-success" onClick={() => post(`ledger/customers/${id}/settle`, settle, () => setSettle(null))}>Save</AsyncButton>
       </>}>
         {settle && <div className="space-y-4">
           <p className="text-sm text-slate-500">Allocated to the oldest unpaid orders first.</p>
@@ -77,7 +78,9 @@ export default function CustomerLedger() {
       </Modal>
       <Modal open={!!adjust} onClose={() => setAdjust(null)} title="Ledger adjustment" size="sm" footer={<>
         <button className="btn-secondary" onClick={() => setAdjust(null)}>Cancel</button>
-        <button className="btn-primary" onClick={() => post(`ledger/customers/${id}/adjust`, adjust, () => setAdjust(null))}>Post</button>
+        <AsyncButton onClick={async () => {
+          if (await confirm({ title: 'Post ledger adjustment?', message: `${adjust.direction === 'credit' ? 'Reduce' : 'Increase'} the balance by ${money(adjust.amount)}. Adjustments are permanent and audited.`, confirmText: 'Post adjustment' })) await post(`ledger/customers/${id}/adjust`, adjust, () => setAdjust(null))
+        }}>Post</AsyncButton>
       </>}>
         {adjust && <div className="space-y-4">
           <Field label="Direction"><Select value={adjust.direction} onChange={(e) => setAdjust({ ...adjust, direction: e.target.value })}

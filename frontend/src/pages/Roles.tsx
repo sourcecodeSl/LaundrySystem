@@ -6,6 +6,7 @@ import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { label } from '../lib/format'
 import { Card, Confirm, Field, Input, Modal, PageHeader, Spinner, cx } from '../components/ui'
+import { ErrorState, Skeleton } from '../components/feedback'
 
 /** User types (module 22) and the permission matrix (module 24). */
 export default function Roles() {
@@ -45,7 +46,7 @@ export default function Roles() {
     <div>
       <PageHeader title="User Types & Permissions" subtitle="Control exactly what each type of user can see and do" icon={<ShieldCheck className="h-5 w-5" />}
         actions={manage && <button className="btn-primary" onClick={() => setEdit({ name: '', description: '', permissions: [] })}><Plus className="h-4 w-4" />New user type</button>} />
-      {!roles.data ? <Spinner /> : (
+      {!roles.data ? (roles.isError ? <ErrorState error={roles.error} onRetry={() => roles.refetch()} /> : <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {roles.data.map((r) => (
             <Card key={r.id}>
@@ -103,7 +104,7 @@ export default function Roles() {
         </>}
       </Modal>
       <Confirm open={!!del} title="Delete user type?" confirmText="Delete" onClose={() => setDel(null)} message="Only user types without users can be deleted."
-        onConfirm={async () => { try { await api.delete(`roles/${del.id}`); setDel(null); roles.refetch() } catch (e) { toast.error(errorMessage(e)) } }} />
+        busy={busy} onConfirm={async () => { setBusy(true); try { await api.delete(`roles/${del.id}`); toast.success('User type deleted'); setDel(null); roles.refetch() } catch (e) { toast.error(errorMessage(e)) } finally { setBusy(false) } }} />
     </div>
   )
 }

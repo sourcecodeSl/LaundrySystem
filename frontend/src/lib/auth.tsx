@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { api, csrf, onAuthEvent } from './api'
 import { setCurrency } from './format'
 
@@ -71,7 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh()
     onAuthEvent({
       unauthenticated: () => {
-        setMe(null)
+        setMe((m) => {
+          if (m) toast.warning('Your session has expired. Please sign in again.', { id: 'session-expired' })
+          return null
+        })
         qc.clear()
       },
       passwordChange: () => setMe((m) => (m ? { ...m, user: { ...m.user, must_change_password: true } } : m)),

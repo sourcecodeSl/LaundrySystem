@@ -6,11 +6,12 @@ import {
   ArrowLeft, Ban, Check, CheckCircle2, Copy, HandCoins, History, MessageSquare, Pencil, Printer, RotateCcw, Tag, Undo2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { AsyncButton, ErrorState, PageLoader, useConfirm } from '../components/feedback'
 import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { ORDER_FLOW, dateTime, label, money, qty } from '../lib/format'
 import { printReceipt, printTags } from '../lib/print'
-import { Card, Confirm, Empty, Field, Input, Modal, Select, Spinner, StatusBadge, Textarea, cx } from '../components/ui'
+import { Card, Empty, Field, Input, Modal, Select, Spinner, StatusBadge, Textarea, cx } from '../components/ui'
 
 export default function OrderDetail() {
   const { id } = useParams()
@@ -53,9 +54,19 @@ export default function OrderDetail() {
     onSuccess: ({ data }) => { refresh(data); toast.success(`Status → ${label(data.status)}`) },
     onError: (e) => toast.error(errorMessage(e)),
   })
+  const confirm = useConfirm()
+  const changeStatus = async (s: string) => {
+    if (s === 'delivered') {
+      const ok = await confirm({
+        title: 'Mark as delivered?', danger: false, confirmText: 'Mark delivered',
+        message: o?.balance > 0 ? `This order still has a balance of ${money(o.balance)}. It can only be delivered on credit if the customer's limit allows.` : 'The order will be closed and the customer notified.',
+      })
+      if (!ok) return
+    }
+    status.mutate(s)
+  }
 
-  if (q.isLoading) return <div className="grid h-96 place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div>
-  if (!o) return <Empty title="Order not found" />
+  if (!o) return q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <PageLoader />
 
   const step = ORDER_FLOW.indexOf(o.status)
   const closed = ['delivered', 'cancelled'].includes(o.status)
@@ -99,7 +110,7 @@ export default function OrderDetail() {
           <div className="flex items-center">
             {ORDER_FLOW.map((s, i) => (
               <div key={s} className="flex flex-1 items-center">
-                <button disabled={closed || !can('orders.status') || i === step || status.isPending} onClick={() => status.mutate(s)}
+                <button disabled={closed || !can('orders.status') || i === step || status.isPending} onClick={() => changeStatus(s)}
                   className={cx('group flex flex-col items-center gap-1.5', !closed && can('orders.status') && i !== step && 'cursor-pointer')}>
                   <span className={cx('grid h-10 w-10 place-items-center rounded-full border-2 text-sm font-bold transition',
                     i < step && 'border-emerald-500 bg-emerald-500 text-white', i === step && 'border-brand-600 bg-brand-600 text-white ring-4 ring-brand-500/20',
@@ -114,7 +125,7 @@ export default function OrderDetail() {
           </div>
           {!closed && can('orders.status') && step < ORDER_FLOW.length - 1 && (
             <div className="mt-5 flex justify-center">
-              <button className="btn-primary" disabled={status.isPending} onClick={() => status.mutate(ORDER_FLOW[step + 1])}>
+              <button className="btn-primary" disabled={status.isPending} onClick={() => changeStatus(ORDER_FLOW[step + 1])}>
                 {status.isPending ? <Spinner className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}Mark as {label(ORDER_FLOW[step + 1])}
               </button>
             </div>
@@ -226,7 +237,7 @@ export default function OrderDetail() {
 
       <Modal open={payOpen} onClose={() => setPayOpen(false)} title="Receive payment" size="sm" footer={<>
         <button className="btn-secondary" onClick={() => setPayOpen(false)}>Cancel</button>
-        <button className="btn-success" onClick={async () => (await run(() => api.post(`orders/${id}/payments`, pay), 'Payment recorded')()) && setPayOpen(false)}>Save payment</button>
+        <AsyncButton className="btn-success" onClick={async () => (await run(() => api.post(`orders/${id}/payments`, pay), 'Payment recorded')()) && setPayOpen(false)}>Save payment</AsyncButton>
       </>}>
         <div className="space-y-4">
           <p className="text-sm">Balance due: <b>{money(o.balance)}</b></p>
@@ -240,19 +251,22 @@ export default function OrderDetail() {
         </div>
       </Modal>
 
-      <Confirm open={cancelOpen} title="Cancel this order?" onClose={() => setCancelOpen(false)} confirmText="Cancel order"
-        message={o.paid > 0 ? `${money(o.paid)} already paid will be refunded in cash from the current shift.` : 'The order will be voided.'}
-        onConfirm={async () => (await run(() => api.post(`orders/${id}/cancel`, { reason }), 'Order cancelled')()) && setCancelOpen(false)}>
-        <Field label="Reason" className="mt-4"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-      </Confirm>
+      <Modal open={cancelOpen} onClose={() => setCancelOpen(false)} title="Cancel this order?" size="sm" footer={<>
+        <button className="btn-secondary" onClick={() => setCancelOpen(false)}>Keep order</button>
+        <AsyncButton className="btn-danger" disabled={!reason.trim()} onClick={async () => (await run(() => api.post(`orders/${id}/cancel`, { reason }), 'Order cancelled')()) && setCancelOpen(false)}>Cancel order</AsyncButton>
+      </>}>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{o.paid > 0 ? `${money(o.paid)} already paid will be refunded in cash from the current shift.` : 'The order will be voided.'} This cannot be undone.</p>
+        <Field label="Reason *" className="mt-4"><Input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      </Modal>
 
       <Modal open={retOpen} onClose={() => setRetOpen(false)} title="Sales return" size="lg" footer={<>
         <button className="btn-secondary" onClick={() => setRetOpen(false)}>Cancel</button>
-        <button className="btn-danger" onClick={async () => {
+        <AsyncButton className="btn-danger" onClick={async () => {
           const items = Object.entries(ret.qty).filter(([, v]) => Number(v) > 0).map(([k, v]) => ({ order_item_id: Number(k), quantity: Number(v) }))
-          if (!items.length) return toast.error('Enter a quantity to return')
+          if (!items.length) return toast.warning('Enter a quantity to return')
+          if (!(await confirm({ title: 'Process this return?', message: `${items.length} line(s) will be returned and refunded by ${label(ret.method)}. This cannot be undone.`, confirmText: 'Process return' }))) return
           if (await run(() => api.post('sales-returns', { order_id: o.id, refund_method: ret.method, reason: ret.reason, items }), 'Return recorded')()) setRetOpen(false)
-        }}>Process return</button>
+        }}>Process return</AsyncButton>
       </>}>
         <table className="table-base mb-4">
           <thead><tr><th>Item</th><th className="text-right">Qty</th><th className="text-right">Returnable</th><th className="text-right">Return qty</th></tr></thead>
@@ -271,7 +285,7 @@ export default function OrderDetail() {
 
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit order details" size="lg" footer={<>
         <button className="btn-secondary" onClick={() => setEditOpen(false)}>Cancel</button>
-        <button className="btn-primary" onClick={async () => (await run(() => api.put(`orders/${id}`, { ...edit, delivery_at: edit.delivery_at ? dayjs(edit.delivery_at).format('YYYY-MM-DD HH:mm:ss') : null }), 'Order updated')()) && setEditOpen(false)}>Save</button>
+        <AsyncButton onClick={async () => (await run(() => api.put(`orders/${id}`, { ...edit, delivery_at: edit.delivery_at ? dayjs(edit.delivery_at).format('YYYY-MM-DD HH:mm:ss') : null }), 'Order updated')()) && setEditOpen(false)}>Save</AsyncButton>
       </>}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Delivery type"><Select value={edit.delivery_type} onChange={(e) => setEdit({ ...edit, delivery_type: e.target.value })} options={[{ value: 'pickup', label: 'Pickup' }, { value: 'home_delivery', label: 'Home delivery' }]} /></Field>
@@ -288,9 +302,9 @@ export default function OrderDetail() {
 
       <Modal open={cmpOpen} onClose={() => setCmpOpen(false)} title="Re-wash / complaint" size="sm" footer={<>
         <button className="btn-secondary" onClick={() => setCmpOpen(false)}>Cancel</button>
-        <button className="btn-primary" disabled={!cmp.description} onClick={async () => {
+        <AsyncButton disabled={!cmp.description} icon={<MessageSquare className="h-4 w-4" />} onClick={async () => {
           try { await api.post('complaints', { ...cmp, order_id: o.id }); toast.success('Recorded'); setCmpOpen(false); q.refetch() } catch (e) { toast.error(errorMessage(e)) }
-        }}><MessageSquare className="h-4 w-4" />Save</button>
+        }}>Save</AsyncButton>
       </>}>
         <div className="space-y-4">
           <Field label="Type"><Select value={cmp.type} onChange={(e) => setCmp({ ...cmp, type: e.target.value })} options={[{ value: 'rewash', label: 'Re-wash' }, { value: 'complaint', label: 'Complaint' }]} /></Field>

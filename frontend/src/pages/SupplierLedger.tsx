@@ -1,16 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Download, Truck } from 'lucide-react'
+import { ErrorState, PageLoader } from '../components/feedback'
 import { api } from '../lib/api'
 import { exportExcel } from '../lib/exportExcel'
 import { date, label, money } from '../lib/format'
-import { Card, Empty, PageHeader, Spinner, Stat } from '../components/ui'
+import { Card, Empty, PageHeader, Stat } from '../components/ui'
 
 export default function SupplierLedger() {
   const { id } = useParams()
   const q = useQuery({ queryKey: ['sup-ledger', id], queryFn: async () => (await api.get(`ledger/suppliers/${id}`)).data })
-  if (q.isLoading) return <Spinner />
-  if (!q.data) return <Empty title="Not found" />
+  if (!q.data) return q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <PageLoader stats={2} />
   const { supplier: s, entries, open_grns } = q.data
   return (
     <div className="space-y-6">

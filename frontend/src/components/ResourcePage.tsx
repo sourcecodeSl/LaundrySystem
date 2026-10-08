@@ -196,7 +196,7 @@ export function ResourcePage<T extends { id: number }>(cfg: ResourceConfig<T>) {
               onChange={(e) => { setFilters((s) => ({ ...s, [f.name]: e.target.value })); setPage(1) }} />
           ))}
         </div>
-        <DataTable columns={columns} rows={list.data?.data ?? []} loading={list.isFetching && !list.data} />
+        <DataTable columns={columns} rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} />
         {list.data && <Pagination page={list.data.current_page} last={list.data.last_page} total={list.data.total} onPage={setPage} />}
       </Card>
 

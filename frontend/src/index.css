@@ -59,3 +59,5 @@
 .slide-up { animation: slideUp .25s cubic-bezier(.2,.8,.2,1); }
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes wiggle { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-14deg) } 40% { transform: rotate(12deg) } 60% { transform: rotate(-8deg) } 80% { transform: rotate(5deg) } }
+@keyframes slideBar { from { transform: translateX(-100%) } to { transform: translateX(300%) } }

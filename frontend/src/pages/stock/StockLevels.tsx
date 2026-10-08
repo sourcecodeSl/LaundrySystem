@@ -31,7 +31,7 @@ export default function StockLevels() {
           <SearchInput className="flex-1" value={q} onChange={setQ} placeholder="Search items…" />
           <Toggle checked={low} onChange={setLow} label="Low stock only" />
         </div>
-        <DataTable rows={rows} loading={r.isFetching && !r.data} columns={[
+        <DataTable rows={rows} loading={r.isFetching} error={r.error} onRetry={() => r.refetch()} columns={[
           { key: 'code', header: 'Code', render: (x) => <span className="font-mono text-xs">{x.code}</span> },
           { key: 'name', header: 'Item', render: (x) => <b>{x.name}</b> },
           { key: 'quantity', header: 'On hand', align: 'right', render: (x) => <span className={x.low ? 'font-bold text-amber-600' : 'font-semibold'}>{qty(x.quantity)} {x.unit}</span> },

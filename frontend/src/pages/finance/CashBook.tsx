@@ -5,7 +5,8 @@ import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import { exportExcel } from '../../lib/exportExcel'
 import { date, label, money, monthStart, today } from '../../lib/format'
-import { Card, DateRange, Empty, PageHeader, Select, Spinner, Stat, cx } from '../../components/ui'
+import { Card, DateRange, Empty, PageHeader, Select, Stat, cx } from '../../components/ui'
+import { ErrorState, PageLoader } from '../../components/feedback'
 
 export default function CashBook() {
   const { branchId } = useAuth()
@@ -24,7 +25,7 @@ export default function CashBook() {
           { header: 'In', value: (e) => (e.direction === 'in' ? e.amount : '') }, { header: 'Out', value: (e) => (e.direction === 'out' ? e.amount : '') }, { header: 'Balance', value: (e) => e.running_balance },
         ], 'cash-book')}><Download className="h-4 w-4" />Excel</button>}
       </>} />
-      {!d ? <Spinner /> : <>
+      {!d ? (q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} /> : <PageLoader header={false} stats={4} />) : <>
         <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Opening balance" value={money(d.opening_balance)} icon={<Landmark className="h-5 w-5" />} />
           <Stat label="Money in" value={money(d.total_in)} tone="emerald" icon={<ArrowDownLeft className="h-5 w-5" />} />

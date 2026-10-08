@@ -42,7 +42,7 @@ export default function SupplierPayments() {
           <SearchInput className="flex-1" value={f.q} onChange={(q) => setF({ ...f, q })} placeholder="Ref, supplier…" />
           <DateRange from={f.from} to={f.to} onChange={(from, to) => setF({ ...f, from, to })} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'ref_no', header: 'Ref', render: (r) => <b>{r.ref_no}</b> }, { key: 'date', header: 'Date', render: (r) => date(r.date) },
           { key: 'supplier', header: 'Supplier', render: (r) => r.supplier?.name },
           { key: 'grn', header: 'GRN', render: (r) => r.grn ? `${r.grn.ref_no} (${r.grn.invoice_no})` : 'On account' },

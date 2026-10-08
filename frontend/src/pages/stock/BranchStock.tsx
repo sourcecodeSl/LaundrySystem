@@ -3,11 +3,12 @@ import { Download, Warehouse } from 'lucide-react'
 import { api } from '../../lib/api'
 import { exportExcel } from '../../lib/exportExcel'
 import { qty } from '../../lib/format'
-import { Card, PageHeader, Spinner, cx } from '../../components/ui'
+import { Card, PageHeader, cx } from '../../components/ui'
+import { ErrorState, PageLoader } from '../../components/feedback'
 
 export default function BranchStock() {
   const r = useQuery({ queryKey: ['branch-stock'], queryFn: async () => (await api.get('stock/branch')).data })
-  if (!r.data) return <Spinner />
+  if (!r.data) return r.isError ? <ErrorState error={r.error} onRetry={() => r.refetch()} /> : <PageLoader />
   const { branches, items } = r.data
   return (
     <div>

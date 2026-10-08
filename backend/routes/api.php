@@ -19,6 +19,7 @@ use App\Http\Controllers\Sales\PosController;
 use App\Http\Controllers\Sales\QuotationController;
 use App\Http\Controllers\Sales\SalesReturnController;
 use App\Http\Controllers\System\ActivityLogController;
+use App\Http\Controllers\System\AlertController;
 use App\Http\Controllers\System\DashboardController;
 use App\Http\Controllers\System\LookupController;
 use App\Http\Controllers\System\ReportController;
@@ -37,6 +38,7 @@ Route::middleware(['auth:sanctum', 'account.usable', 'throttle:api'])->group(fun
 
     Route::get('lookups', LookupController::class);
     Route::get('dashboard', DashboardController::class);
+    Route::get('alerts', AlertController::class);
     Route::get('reports/{type}', ReportController::class);
     Route::get('activity-logs', [ActivityLogController::class, 'index']);
     Route::get('settings', [SettingsController::class, 'index']);

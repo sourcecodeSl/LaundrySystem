@@ -36,7 +36,7 @@ class DashboardController extends Controller
 
         $byService = $orders()->join('order_items', 'order_items.order_id', '=', 'orders.id')
             ->leftJoin('services', 'services.id', '=', 'order_items.service_id')
-            ->selectRaw("COALESCE(services.name, 'Quick sale') as name, SUM(order_items.total) as total, COUNT(order_items.id) as lines")
+            ->selectRaw("COALESCE(services.name, 'Quick sale') as name, SUM(order_items.total) as total, COUNT(order_items.id) as line_count")
             ->groupBy('name')->orderByDesc('total')->limit(8)->get();
 
         $statusCounts = Order::visibleTo($user, $branchId)->whereNotIn('status', ['delivered', 'cancelled'])

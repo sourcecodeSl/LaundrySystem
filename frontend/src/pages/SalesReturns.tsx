@@ -22,7 +22,7 @@ export default function SalesReturns() {
           <SearchInput className="flex-1" value={f.q} onChange={(q) => setF({ ...f, q })} placeholder="Return no or order no…" />
           <DateRange from={f.from} to={f.to} onChange={(from, to) => setF({ ...f, from, to })} />
         </div>
-        <DataTable rows={list.data?.data ?? []} loading={list.isFetching && !list.data} columns={[
+        <DataTable rows={list.data?.data ?? []} loading={list.isFetching} error={list.error} onRetry={() => list.refetch()} columns={[
           { key: 'ref_no', header: 'Return', render: (r) => <b>{r.ref_no}</b> },
           { key: 'created_at', header: 'Date', render: (r) => dateTime(r.created_at) },
           { key: 'order', header: 'Order', render: (r) => <Link className="text-brand-600 hover:underline" to={`/orders/${r.order_id}`}>{r.order?.order_no}</Link> },

@@ -4,6 +4,7 @@ import { ShieldX } from 'lucide-react'
 import { useAuth } from './lib/auth'
 import Layout from './components/Layout'
 import { Empty, Spinner } from './components/ui'
+import { PageLoader } from './components/feedback'
 import Login from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
 
@@ -38,7 +39,7 @@ const SettingsPage = lazy(() => import('./pages/Settings'))
 const ActivityLogs = lazy(() => import('./pages/ActivityLogs'))
 const Ebill = lazy(() => import('./pages/Ebill'))
 
-const Loading = () => <div className="grid min-h-[50vh] place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div>
+const Loading = () => <div className="p-6"><PageLoader /></div>
 
 function Guard({ perm, children }: { perm: string[]; children: ReactNode }) {
   const { can } = useAuth()

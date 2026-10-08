@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { Calculator as CalcIcon, Scale } from 'lucide-react'
 import { useCatalog } from '../lib/catalog'
 import { money, qty } from '../lib/format'
-import { Card, Empty, Field, Input, PageHeader, Select, Spinner } from '../components/ui'
+import { Card, Empty, Field, Input, PageHeader, Select } from '../components/ui'
+import { ErrorState, PageLoader } from '../components/feedback'
 
 /** Weight / price calculator (module 26) — quick estimate without creating an order. */
 export default function Calculator() {
@@ -23,7 +24,8 @@ export default function Calculator() {
   const sc = sub * rates.filter((r) => r.type === 'service_charge').reduce((a, r) => a + Number(r.rate), 0) / 100
   const tax = (sub + sc) * rates.filter((r) => r.type === 'tax').reduce((a, r) => a + Number(r.rate), 0) / 100
 
-  if (cat.isLoading) return <Spinner />
+  if (cat.isError) return <ErrorState error={cat.error} onRetry={() => cat.refetch()} />
+  if (cat.isLoading) return <PageLoader table={false} stats={3} />
   if (!cat.data?.services.length) return <Empty title="No services configured" />
 
   return (

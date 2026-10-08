@@ -6,7 +6,8 @@ import { useAuth } from '../lib/auth'
 import { exportExcel } from '../lib/exportExcel'
 import { label, money, monthStart, qty, today } from '../lib/format'
 import { esc, printHtml } from '../lib/print'
-import { Card, DateRange, Empty, PageHeader, Spinner, cx } from '../components/ui'
+import { Card, DateRange, Empty, PageHeader, cx } from '../components/ui'
+import { ErrorState, TableSkeleton } from '../components/feedback'
 
 type Col = { key: string; header: string; kind?: 'money' | 'qty' | 'int' | 'text' }
 const REPORTS: { id: string; title: string; perm?: string; cols: Col[] }[] = [
@@ -53,7 +54,7 @@ export default function Reports() {
           ))}
         </Card>
         <Card title={rep.title} padded={false}>
-          {q.isFetching && !q.data ? <div className="p-10 text-center"><Spinner className="mx-auto h-6 w-6" /></div> : !rows.length ? <Empty title="No data for this period" /> : (
+          {q.isError && !q.data ? <ErrorState error={q.error} onRetry={() => q.refetch()} compact /> : q.isFetching && !q.data ? <TableSkeleton cols={rep.cols.length} /> : !rows.length ? <Empty title="No data for this period" /> : (
             <div className="overflow-x-auto">
               <table className="table-base">
                 <thead><tr>{rep.cols.map((c) => <th key={c.key} className={c.kind ? 'text-right' : ''}>{c.header}</th>)}</tr></thead>

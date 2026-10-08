@@ -25,7 +25,7 @@ export default function ActivityLogs() {
           <Select className="w-auto" placeholder="All actions" value={f.action} onChange={(e) => setF({ ...f, action: e.target.value })} options={ACTIONS.map((a) => ({ value: a, label: label(a) }))} />
           <DateRange from={f.from} to={f.to} onChange={(from, to) => setF({ ...f, from, to })} />
         </div>
-        <DataTable rows={q.data?.data ?? []} loading={q.isFetching && !q.data} onRowClick={(r) => r.changes && setView(r)} columns={[
+        <DataTable rows={q.data?.data ?? []} loading={q.isFetching} error={q.error} onRetry={() => q.refetch()} onRowClick={(r) => r.changes && setView(r)} columns={[
           { key: 'created_at', header: 'Time', render: (r) => <span className="text-xs">{dateTime(r.created_at)}</span> },
           { key: 'user', header: 'User', render: (r) => r.user?.name ?? 'System' },
           { key: 'action', header: 'Action', render: (r) => <span className={cx('chip', r.action === 'login_failed' || r.action === 'deleted' ? 'bg-rose-100 text-rose-700' : r.action === 'created' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300')}>{label(r.action)}</span> },

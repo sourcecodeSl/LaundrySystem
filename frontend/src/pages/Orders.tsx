@@ -57,7 +57,7 @@ export default function Orders() {
           <DateRange from={f.from} to={f.to} onChange={(from, to) => { setF((s) => ({ ...s, from, to })); setPage(1) }} />
           {f.due_today && <button className="chip cursor-pointer bg-brand-100 py-1.5 text-brand-700" onClick={() => set('due_today', '')}>Due today ✕</button>}
         </div>
-        <DataTable rows={q.data?.data ?? []} loading={q.isFetching && !q.data} onRowClick={(r) => nav(`/orders/${r.id}`)} columns={[
+        <DataTable rows={q.data?.data ?? []} loading={q.isFetching} error={q.error} onRetry={() => q.refetch()} onRowClick={(r) => nav(`/orders/${r.id}`)} columns={[
           { key: 'order_no', header: 'Order', render: (r) => <div><p className="font-semibold text-brand-600">{r.order_no}</p><p className="text-xs text-slate-500">{r.receipt_no}</p></div> },
           { key: 'queue_no', header: 'Queue', render: (r) => <span className="font-bold">#{r.queue_no}</span> },
           { key: 'created_at', header: 'Date', render: (r) => <span className="text-xs">{dateTime(r.created_at)}</span> },

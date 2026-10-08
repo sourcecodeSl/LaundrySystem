@@ -6,6 +6,7 @@ import { Field, Input, Modal, Spinner } from '../components/ui'
 import { api, errorMessage } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { dateTime } from '../lib/format'
+import { AsyncButton } from '../components/feedback'
 
 export default function Users() {
   const { can, lookups } = useAuth()
@@ -50,7 +51,7 @@ export default function Users() {
         ]}
         rowActions={(r) => <>
           {can('users.reset_password') && <button className="btn-icon" title="Reset password" onClick={() => { setPw({ password: '', password_confirmation: '' }); setReset(r) }}><KeyRound className="h-4 w-4" /></button>}
-          {can('users.update') && <button className="btn-icon" title="Unlock" onClick={() => unlock(r.id)}><LockOpen className="h-4 w-4" /></button>}
+          {can('users.update') && <AsyncButton className="btn-icon" title="Unlock account" icon={<LockOpen className="h-4 w-4" />} onClick={() => unlock(r.id)} />}
         </>}
         fields={[
           { name: 'name', label: 'Full name', required: true },

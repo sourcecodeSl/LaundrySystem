@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth'
 import { exportExcel } from '../lib/exportExcel'
 import { label, money } from '../lib/format'
 import { Card, Field, Input, Modal, PageHeader, Select, Spinner, cx } from '../components/ui'
+import { AsyncButton, ErrorState, PageLoader, useConfirm } from '../components/feedback'
 
 /** Variant × Service price matrix (module 4) with bulk price update (module 56). */
 export default function PriceList() {
@@ -24,6 +25,7 @@ export default function PriceList() {
   const [saving, setSaving] = useState(false)
   const [bulk, setBulk] = useState<any>(null)
   const [preview, setPreview] = useState<any>(null)
+  const confirm = useConfirm()
   const editable = can('services.prices')
 
   useEffect(() => {
@@ -64,7 +66,8 @@ export default function PriceList() {
     }
   }
 
-  if (data.isLoading) return <div className="grid h-64 place-items-center"><Spinner className="h-7 w-7 text-brand-500" /></div>
+  if (data.isError) return <ErrorState error={data.error} onRetry={() => data.refetch()} />
+  if (data.isLoading) return <PageLoader />
 
   return (
     <div>
@@ -106,8 +109,10 @@ export default function PriceList() {
 
       <Modal open={!!bulk} onClose={() => setBulk(null)} title="Bulk price update" size="lg" footer={<>
         <button className="btn-secondary" onClick={() => setBulk(null)}>Cancel</button>
-        <button className="btn-secondary" disabled={bulk?.value === ''} onClick={() => runBulk(false)}>Preview</button>
-        <button className="btn-primary" disabled={!preview} onClick={() => runBulk(true)}>Apply to {preview?.affected ?? 0} prices</button>
+        <AsyncButton className="btn-secondary" disabled={bulk?.value === ''} onClick={() => runBulk(false)}>Preview</AsyncButton>
+        <AsyncButton disabled={!preview} onClick={async () => {
+          if (await confirm({ title: `Update ${preview.affected} prices?`, message: 'New prices apply to all branches immediately for new orders. This cannot be undone automatically.', confirmText: 'Apply prices', danger: false })) await runBulk(true)
+        }}>Apply to {preview?.affected ?? 0} prices</AsyncButton>
       </>}>
         {bulk && <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
