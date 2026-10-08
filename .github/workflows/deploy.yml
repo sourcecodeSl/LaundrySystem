@@ -73,7 +73,7 @@ jobs:
             printf '%s\n' "set cmd:fail-exit true"
             printf 'open "ftp://%s"\n' "$FTP_SERVER"
             printf 'user "%s" "%s"\n' "$FTP_USERNAME" "$FTP_PASSWORD"
-            printf '%s\n' "mirror -R --size-only --no-perms --parallel=2 --verbose backend/vendor/ /vendor/"
+            printf '%s\n' "mirror -R --ignore-time --no-perms --parallel=2 --verbose backend/vendor/ /vendor/"
             printf '%s\n' "mirror -R --no-perms --parallel=2 --verbose --exclude-glob .git* --exclude vendor/ --exclude node_modules/ --exclude tests/ --exclude-glob .env --exclude-glob .env.* --exclude storage/logs/ --exclude storage/framework/cache/ --exclude storage/framework/sessions/ --exclude storage/framework/views/ --exclude-glob phpunit.xml --exclude-glob .phpunit* backend/ /"
             printf '%s\n' "bye"
           } > deploy.lftp
